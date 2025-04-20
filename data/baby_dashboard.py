@@ -48,8 +48,9 @@ def load_data_from_github():
         
         # 读取睡眠数据
         try:
-            sleep_df = pd.read_csv(sleep_url, encoding='utf-8')
+            sleep_df = pd.read_csv(sleep_url, encoding='utf-8', sep='\s+')  # 使用空白字符作为分隔符
             st.write("成功读取睡眠数据原始内容:")
+            st.write("睡眠数据列名:", sleep_df.columns.tolist())
             st.write(sleep_df.head())
         except Exception as e:
             st.error(f"读取睡眠数据失败: {str(e)}")
@@ -57,16 +58,26 @@ def load_data_from_github():
             
         # 读取喂奶数据
         try:
-            feeding_df = pd.read_csv(feeding_url, encoding='utf-8')
+            feeding_df = pd.read_csv(feeding_url, encoding='utf-8', sep='\s+')  # 使用空白字符作为分隔符
             st.write("成功读取喂奶数据原始内容:")
+            st.write("喂奶数据列名:", feeding_df.columns.tolist())
             st.write(feeding_df.head())
         except Exception as e:
             st.error(f"读取喂奶数据失败: {str(e)}")
             return None, None
         
-        # 重命名列
-        sleep_df.columns = ['日期', '入睡', '睡醒', '总睡眠时间（mins）']
-        feeding_df.columns = ['日期', '哺乳类型', '哺乳时间', '奶量(ml)']
+        # 检查列名并重命名
+        if len(sleep_df.columns) == 4:
+            sleep_df.columns = ['日期', '入睡', '睡醒', '总睡眠时间（mins）']
+        else:
+            st.error(f"睡眠数据列数不正确，期望4列，实际{len(sleep_df.columns)}列")
+            return None, None
+            
+        if len(feeding_df.columns) == 4:
+            feeding_df.columns = ['日期', '哺乳类型', '哺乳时间', '奶量(ml)']
+        else:
+            st.error(f"喂奶数据列数不正确，期望4列，实际{len(feeding_df.columns)}列")
+            return None, None
         
         # 转换日期列
         sleep_df['日期'] = pd.to_datetime(sleep_df['日期'])
