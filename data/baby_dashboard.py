@@ -42,41 +42,21 @@ def load_data_from_github():
         sleep_url = f"{base_url}/sleep_data.csv"
         feeding_url = f"{base_url}/feeding_data.csv"
         
-        st.write("尝试从以下链接加载数据:")
-        st.write(f"睡眠数据: {sleep_url}")
-        st.write(f"喂奶数据: {feeding_url}")
-        
         # 读取睡眠数据
-        try:
-            sleep_df = pd.read_csv(sleep_url, encoding='utf-8', sep='\s+')  # 使用空白字符作为分隔符
-            st.write("成功读取睡眠数据原始内容:")
-            st.write("睡眠数据列名:", sleep_df.columns.tolist())
-            st.write(sleep_df.head())
-        except Exception as e:
-            st.error(f"读取睡眠数据失败: {str(e)}")
-            return None, None
+        sleep_df = pd.read_csv(sleep_url, encoding='utf-8', sep='\s+')  # 使用空白字符作为分隔符
             
         # 读取喂奶数据
-        try:
-            feeding_df = pd.read_csv(feeding_url, encoding='utf-8', sep='\s+')  # 使用空白字符作为分隔符
-            st.write("成功读取喂奶数据原始内容:")
-            st.write("喂奶数据列名:", feeding_df.columns.tolist())
-            st.write(feeding_df.head())
-        except Exception as e:
-            st.error(f"读取喂奶数据失败: {str(e)}")
-            return None, None
+        feeding_df = pd.read_csv(feeding_url, encoding='utf-8', sep='\s+')  # 使用空白字符作为分隔符
         
         # 检查列名并重命名
         if len(sleep_df.columns) == 4:
             sleep_df.columns = ['日期', '入睡', '睡醒', '总睡眠时间（mins）']
         else:
-            st.error(f"睡眠数据列数不正确，期望4列，实际{len(sleep_df.columns)}列")
             return None, None
             
         if len(feeding_df.columns) == 4:
             feeding_df.columns = ['日期', '哺乳类型', '哺乳时间', '奶量(ml)']
         else:
-            st.error(f"喂奶数据列数不正确，期望4列，实际{len(feeding_df.columns)}列")
             return None, None
         
         # 转换日期列
@@ -88,7 +68,6 @@ def load_data_from_github():
             if pd.isna(time_str):
                 return None
             try:
-                # 处理 HH:MM 格式
                 if ':' in str(time_str):
                     parts = str(time_str).split(':')
                     if len(parts) == 2:
@@ -109,15 +88,9 @@ def load_data_from_github():
         sleep_df['总睡眠时间（mins）'] = pd.to_numeric(sleep_df['总睡眠时间（mins）'], errors='coerce')
         feeding_df['奶量(ml)'] = pd.to_numeric(feeding_df['奶量(ml)'], errors='coerce')
         
-        st.write("数据处理完成:")
-        st.write("睡眠数据示例:", sleep_df.head())
-        st.write("喂奶数据示例:", feeding_df.head())
-        
         return sleep_df, feeding_df
         
-    except Exception as e:
-        st.error(f"数据加载过程中发生错误: {str(e)}")
-        st.write("错误详情:", e)
+    except Exception:
         return None, None
 
 def create_detailed_chart(sleep_df, feeding_df):
@@ -319,22 +292,17 @@ def main():
         # 从 GitHub 加载数据
         sleep_df, feeding_df = load_data_from_github()
         
-        if sleep_df is None or feeding_df is None:
-            st.error("无法加载数据，请检查数据源")
-            return
+        if sleep_df is not None and feeding_df is not None:
+            # 创建详细图表
+            detailed_chart = create_detailed_chart(sleep_df, feeding_df)
+            st.plotly_chart(detailed_chart, use_container_width=True)
             
-        # 创建详细图表
-        st.subheader("详细记录")
-        detailed_chart = create_detailed_chart(sleep_df, feeding_df)
-        st.plotly_chart(detailed_chart, use_container_width=True)
-        
-        # 创建每日统计图表
-        st.subheader("每日统计")
-        daily_stats = create_daily_stats_charts(sleep_df, feeding_df)
-        st.plotly_chart(daily_stats, use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"发生错误: {str(e)}")
+            # 创建每日统计图表
+            daily_stats = create_daily_stats_charts(sleep_df, feeding_df)
+            st.plotly_chart(daily_stats, use_container_width=True)
+            
+    except Exception:
+        pass
 
 if __name__ == "__main__":
     main() 
