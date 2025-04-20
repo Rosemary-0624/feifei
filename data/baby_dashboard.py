@@ -3,37 +3,37 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import datetime
-import requests
-from io import BytesIO
 
+# 必须是第一个 Streamlit 命令
+st.set_page_config(
+    page_title="婴儿睡眠和喂奶记录",
+    page_icon="👶",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-def load_data_from_oss():
-    """从阿里云 OSS 加载数据"""
-    # 阿里云 OSS 配置
-    auth = oss2.Auth(
-        st.secrets["ali_oss"]["access_key_id"],
-        st.secrets["ali_oss"]["access_key_secret"]
-    )
-    bucket = oss2.Bucket(
-        auth,
-        st.secrets["ali_oss"]["endpoint"],
-        st.secrets["ali_oss"]["bucket_name"]
-    )
+def load_data_from_github():
+    """从 GitHub 加载数据"""
+    # GitHub raw 文件链接
+    base_url = "https://raw.githubusercontent.com/Rosemary-0624/feifei/main/data"
+    sleep_url = f"{base_url}/sleep_data.csv"
+    feeding_url = f"{base_url}/feeding_data.csv"
     
-    # 读取数据
-    sleep_obj = bucket.get_object('sleep_data.xlsx')
-    feeding_obj = bucket.get_object('feeding_data.xlsx')
-    
-    sleep_df = pd.read_excel(BytesIO(sleep_obj.read()), parse_dates=['日期'])
-    feeding_df = pd.read_excel(BytesIO(feeding_obj.read()), parse_dates=['日期'])
-    
-    return sleep_df, feeding_df
-
-
-def filter_data_by_date_range(df, start_date, end_date):
-    """按日期范围筛选数据"""
-    return df[(df['日期'] >= start_date) & (df['日期'] <= end_date)]
-
+    try:
+        # 读取数据
+        sleep_df = pd.read_csv(sleep_url, parse_dates=['日期'])
+        feeding_df = pd.read_csv(feeding_url, parse_dates=['日期'])
+        
+        # 确保时间列的格式正确
+        for df in [sleep_df, feeding_df]:
+            for col in df.columns:
+                if '时间' in col or '入睡' in col or '睡醒' in col:
+                    df[col] = pd.to_datetime(df[col]).dt.time
+        
+        return sleep_df, feeding_df
+    except Exception as e:
+        st.error(f"从GitHub加载数据失败: {str(e)}")
+        return None, None
 
 def create_detailed_chart(sleep_df, feeding_df):
     """创建详细的睡眠和喂奶记录图"""
@@ -50,7 +50,7 @@ def create_detailed_chart(sleep_df, feeding_df):
     
     fig = go.Figure()
     
-    # 修改睡眠记录部分
+    # 添加睡眠记录（蓝色横道）
     for _, row in sleep_df.iterrows():
         try:
             date = row['日期'].date()
@@ -68,14 +68,14 @@ def create_detailed_chart(sleep_df, feeding_df):
                 
                 duration = row['总睡眠时间（mins）'] / 60  # 转换为小时
                 
-                # 关键修改：使用两个时间点创建横道
+                # 修改：使用线段来表示每段睡眠
                 fig.add_trace(go.Scatter(
                     x=[start_dt, end_dt],
                     y=[f"{date} 睡眠", f"{date} 睡眠"],
                     mode='lines',
                     line=dict(
                         color='rgb(68, 114, 196)',
-                        width=20,  # 增加线的宽度使其看起来像横道
+                        width=20,
                     ),
                     name='睡眠',
                     text=f"{duration:.1f}h",
@@ -141,9 +141,9 @@ def create_detailed_chart(sleep_df, feeding_df):
         ),
         xaxis=dict(
             type='date',
-            tickformat="%H",  # 只显示小时数
-            dtick="H1",      # 每小时显示一个刻度
-            ticktext=[str(i) for i in range(24)],  # 0-23小时
+            tickformat="%H",
+            dtick="H1",
+            ticktext=[str(i) for i in range(24)],
             tickvals=[
                 datetime.datetime.combine(ref_date, datetime.time(i, 0))
                 for i in range(24)
@@ -154,14 +154,13 @@ def create_detailed_chart(sleep_df, feeding_df):
             ],
             gridcolor='rgba(128,128,128,0.2)',
             showgrid=True,
-            tickmode='array'  # 使用自定义刻度
+            tickmode='array'
         ),
         plot_bgcolor='white',
         paper_bgcolor='white'
     )
     
     return fig
-
 
 def create_daily_stats_charts(sleep_df, feeding_df):
     """创建每日统计图表"""
@@ -180,12 +179,12 @@ def create_daily_stats_charts(sleep_df, feeding_df):
         go.Scatter(
             x=daily_sleep['日期'],
             y=daily_sleep['总睡眠时间(小时)'],
-            mode='lines+markers+text',  # 添加文本模式
+            mode='lines+markers+text',
             name='睡眠时长(小时)',
             line=dict(color='rgb(68, 114, 196)'),
-            text=[f'{x:.1f}h' for x in daily_sleep['总睡眠时间(小时)']],  # 格式化为1位小数
-            textposition='top center',  # 文本位置
-            textfont=dict(size=10)  # 文本字体大小
+            text=[f'{x:.1f}h' for x in daily_sleep['总睡眠时间(小时)']],
+            textposition='top center',
+            textfont=dict(size=10)
         ),
         row=1, col=1
     )
@@ -195,129 +194,55 @@ def create_daily_stats_charts(sleep_df, feeding_df):
         go.Scatter(
             x=daily_milk['日期'],
             y=daily_milk['奶量(ml)'],
-            mode='lines+markers+text',  # 添加文本模式
+            mode='lines+markers+text',
             name='奶量(ml)',
             line=dict(color='rgb(255, 192, 0)'),
-            text=[f'{int(x)}ml' for x in daily_milk['奶量(ml)']],  # 格式化为整数
-            textposition='top center',  # 文本位置
-            textfont=dict(size=10)  # 文本字体大小
+            text=[f'{int(x)}ml' for x in daily_milk['奶量(ml)']],
+            textposition='top center',
+            textfont=dict(size=10)
         ),
         row=2, col=1
     )
     
     # 更新布局
     fig.update_layout(
-        height=800, 
+        height=800,
         showlegend=True,
-        # 更新y轴格式
         yaxis=dict(
-            tickformat='.1f',  # 睡眠时长显示1位小数
+            tickformat='.1f',
             title='睡眠时长(小时)'
         ),
         yaxis2=dict(
-            tickformat='d',  # 奶量显示整数
+            tickformat='d',
             title='奶量(ml)'
         )
     )
     
     return fig
 
-
-def load_data_from_github():
-    """从 GitHub 加载数据"""
-    # GitHub raw 文件链接
-    sleep_url = "https://raw.githubusercontent.com/Rosemary-0624/feifei/main/data/sleep_data.csv"
-    feeding_url = "https://raw.githubusercontent.com/Rosemary-0624/feifei/main/data/feeding_data.csv"
-    
-    try:
-        # 读取数据
-        sleep_df = pd.read_csv(sleep_url, parse_dates=['日期'])
-        feeding_df = pd.read_csv(feeding_url, parse_dates=['日期'])
-        
-        return sleep_df, feeding_df
-    except Exception as e:
-        st.error(f"从GitHub加载数据失败: {str(e)}")
-        return None, None
-
-
 def main():
     st.title("婴儿睡眠和喂奶记录")
-    
-    # 添加页面配置以优化移动端显示
-    st.set_page_config(
-        page_title="婴儿睡眠和喂奶记录",
-        page_icon="👶",
-        layout="wide",
-        initial_sidebar_state="collapsed"
-    )
-    
-    # 添加自定义 CSS 以优化移动端显示
-    st.markdown("""
-        <style>
-        .reportview-container {
-            max-width: 1200px;
-            padding-top: 2rem;
-            padding-right: 1rem;
-            padding-left: 1rem;
-            margin: 0 auto;
-        }
-        .stPlotlyChart {
-            width: 100%;
-            height: auto !important;
-        }
-        @media (max-width: 768px) {
-            .reportview-container {
-                padding: 1rem;
-            }
-        }
-        </style>
-    """, unsafe_allow_html=True)
     
     try:
         # 从 GitHub 加载数据
         sleep_df, feeding_df = load_data_from_github()
+        
         if sleep_df is None or feeding_df is None:
             st.error("无法加载数据，请检查数据源")
             return
+            
+        # 创建详细图表
+        st.subheader("详细记录")
+        detailed_chart = create_detailed_chart(sleep_df, feeding_df)
+        st.plotly_chart(detailed_chart, use_container_width=True)
         
-        # 日期范围选择
-        st.subheader("选择数据显示范围")
-        date_range = st.radio(
-            "选择时间范围",
-            ["近一周", "近半月", "近一月", "全部数据", "自定义范围"]
-        )
+        # 创建每日统计图表
+        st.subheader("每日统计")
+        daily_stats = create_daily_stats_charts(sleep_df, feeding_df)
+        st.plotly_chart(daily_stats, use_container_width=True)
         
-        # 确定日期范围
-        end_date = sleep_df['日期'].max()
-        if date_range == "近一周":
-            start_date = end_date - pd.Timedelta(days=7)
-        elif date_range == "近半月":
-            start_date = end_date - pd.Timedelta(days=15)
-        elif date_range == "近一月":
-            start_date = end_date - pd.Timedelta(days=30)
-        elif date_range == "全部数据":
-            start_date = sleep_df['日期'].min()
-        else:  # 自定义范围
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input("开始日期", 
-                                         value=end_date - pd.Timedelta(days=7))
-            with col2:
-                end_date = st.date_input("结束日期", value=end_date)
-            start_date = pd.Timestamp(start_date)
-            end_date = pd.Timestamp(end_date)
-        
-        # 过滤数据
-        sleep_df_filtered = filter_data_by_date_range(sleep_df, start_date, end_date)
-        feeding_df_filtered = filter_data_by_date_range(feeding_df, start_date, end_date)
-        
-        # 显示图表
-        st.plotly_chart(create_detailed_chart(sleep_df_filtered, feeding_df_filtered))
-        st.plotly_chart(create_daily_stats_charts(sleep_df_filtered, feeding_df_filtered))
-
     except Exception as e:
-        st.error(f"加载数据时出错: {str(e)}")
-
+        st.error(f"发生错误: {str(e)}")
 
 if __name__ == "__main__":
     main()
