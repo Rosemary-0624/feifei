@@ -293,12 +293,41 @@ def main():
         sleep_df, feeding_df = load_data_from_github()
         
         if sleep_df is not None and feeding_df is not None:
+            # 添加时间范围选择
+            time_range = st.radio(
+                "选择时间范围",
+                ["近一周", "近半个月", "近一个月", "所有历史数据"],
+                horizontal=True
+            )
+            
+            # 计算日期范围
+            latest_date = max(
+                sleep_df['日期'].max(),
+                feeding_df['日期'].max()
+            )
+            
+            if time_range == "近一周":
+                start_date = latest_date - pd.Timedelta(days=7)
+            elif time_range == "近半个月":
+                start_date = latest_date - pd.Timedelta(days=15)
+            elif time_range == "近一个月":
+                start_date = latest_date - pd.Timedelta(days=30)
+            else:  # 所有历史数据
+                start_date = min(
+                    sleep_df['日期'].min(),
+                    feeding_df['日期'].min()
+                )
+            
+            # 过滤数据
+            sleep_df_filtered = sleep_df[sleep_df['日期'] >= start_date]
+            feeding_df_filtered = feeding_df[feeding_df['日期'] >= start_date]
+            
             # 创建详细图表
-            detailed_chart = create_detailed_chart(sleep_df, feeding_df)
+            detailed_chart = create_detailed_chart(sleep_df_filtered, feeding_df_filtered)
             st.plotly_chart(detailed_chart, use_container_width=True)
             
             # 创建每日统计图表
-            daily_stats = create_daily_stats_charts(sleep_df, feeding_df)
+            daily_stats = create_daily_stats_charts(sleep_df_filtered, feeding_df_filtered)
             st.plotly_chart(daily_stats, use_container_width=True)
             
     except Exception:
