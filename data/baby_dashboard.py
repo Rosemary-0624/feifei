@@ -153,6 +153,13 @@ def create_detailed_chart(sleep_df, feeding_df):
                 
                 duration = row['总睡眠时间（mins）'] / 60  # 转换为小时
                 
+                # 修改：增加悬停显示的时间区间信息
+                hover_text = (
+                    f"入睡: {start_time.strftime('%H:%M')}<br>"
+                    f"睡醒: {end_time.strftime('%H:%M')}<br>"
+                    f"时长: {duration:.1f}h"
+                )
+                
                 # 修改：使用线段来表示每段睡眠
                 fig.add_trace(go.Scatter(
                     x=[start_dt, end_dt],
@@ -163,9 +170,9 @@ def create_detailed_chart(sleep_df, feeding_df):
                         width=20,
                     ),
                     name='睡眠',
-                    text=f"{duration:.1f}h",
-                    showlegend=False,
-                    hoverinfo="text"
+                    text=hover_text,
+                    hoverinfo="text",
+                    showlegend=False
                 ))
         except Exception as e:
             st.write(f"处理睡眠数据出错: {str(e)}")
